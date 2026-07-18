@@ -957,6 +957,7 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             model: TARGET_MODEL,
+                            prompt: "",
                             keep_alive: -1 // Indefinitely locks the parameters in VRAM context
                         })
                     });
