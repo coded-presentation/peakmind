@@ -926,8 +926,7 @@
                 showToast('PeakMind logged successfully!');
             };
 
-            // --- AI Coach Question ---
-            // --- AI Coach Question ---
+            // --- AI Coach Question (Auto-Loading Split Architecture) ---
             window.askCoach = async function() {
                 const question = aiQuestion.value.trim();
                 if (!question) return;
@@ -941,29 +940,34 @@
                 const latest = logs[0];
                 const metrics = calcMetrics(logs);
 
-                // 1. Point this directly to your live VRAM-backed Apache domain or server IP
+                // Unified Local PC IP pointing directly to your clean root Apache Reverse Proxy
                 const BACKEND_URL = "http://172.20.127.7";         
-                const TARGET_MODEL = "llama3:latest"; // Your high-speed VRAM model
+                const TARGET_MODEL = "llama3:latest"; // Your high-speed VRAM accelerated model
 
-    try {
-        // STEP 1: FORCE AUTOMATIC PRE-WARM HANDSHAKE
-        // This ensures the model script is awake in memory BEFORE passing the query
-        const preWarmResponse = await fetch(`${BASE_URL}/api/generate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: TARGET_MODEL,
-                keep_alive: -1 // Freeze it in hardware memory context indefinitely
-            })
-        });
+                // Set loading layout state and freeze inputs immediately to protect network channel
+                aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚙️ <span class="text-amber-400">Initializing AI core weights...</span>`;
+                aiQuestion.value = ""; 
+                aiQuestion.disabled = true; 
 
-        if (!preWarmResponse.ok) throw new Error("AI Core initialization failed.");
+                try {
+                    // STEP 1: FORCE AUTOMATIC PRE-WARM HANDSHAKE
+                    // Ensures the model script is fully active in VRAM before processing your query
+                    const preWarmResponse = await fetch(`${BACKEND_URL}/api/generate`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            model: TARGET_MODEL,
+                            keep_alive: -1 // Indefinitely locks the parameters in VRAM context
+                        })
+                    });
 
-        // Update UI to let user know memory allocation succeeded
-        aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚡ <span class="text-amber-400">Coach is analyzing metrics...</span>`;
+                    if (!preWarmResponse.ok) throw new Error("AI Core initialization failed.");
 
-        // Compile your tracking parameters prompt layout
-        const contextualPrompt = `
+                    // Update UI status once hardware validation succeeds
+                    aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚡ <span class="text-amber-400">Coach is analyzing metrics...</span>`;
+
+                    // Compile your metrics data securely into the model prompt
+                    const contextualPrompt = `
 You are the PeakMind Performance Coach. 
 Analyze the user's latest logged metrics and answer their question.
 
@@ -973,8 +977,8 @@ Analyze the user's latest logged metrics and answer their question.
 [LATEST METRICS FOR TODAY]:
 - Main Quest: ${latest.mainQuest || 'None'}
 - Today's Sleep: ${latest.sleep || 0} hours 
-- Steps taken: ${latest.steps}
-- Energy Burn (PPI): ${latest.ppi} / Value Delivered (CPI): ${latest.cpi}
+- Steps taken: ${latest.steps || 0}
+- Energy Burn (PPI): ${latest.ppi || 0} / Value Delivered (CPI): ${latest.cpi || 0}
 - Focused Sprints Completed: ${latest.sprintCount || 0}
 
 [USER QUESTION]:
@@ -983,9 +987,8 @@ Analyze the user's latest logged metrics and answer their question.
 Provide a highly actionable, motivating performance review tailored directly to these stats. Keep it to 2-3 short, concise sentences maximum.
 `;
 
-                try {
-                    // 4. Send request down the Apache reverse-proxy to the container
-                    const response = await fetch(BACKEND_URL, {
+                    // STEP 2: DISPATCH QUERY NOW THAT BACKEND MEMORY STATUS IS WARM
+                    const response = await fetch(`${BACKEND_URL}/api/generate`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -993,7 +996,7 @@ Provide a highly actionable, motivating performance review tailored directly to 
                         body: JSON.stringify({
                             model: TARGET_MODEL,
                             prompt: contextualPrompt,
-                            stream: false // Expect a single consolidated payload block
+                            stream: false // Consolidates streaming tokens into a single clean text return
                         })
                     });
 
@@ -1002,20 +1005,20 @@ Provide a highly actionable, motivating performance review tailored directly to 
                     const data = await response.json();
                     const aiResponseText = data.response;
 
-                    // 5. Update the UI precisely inside your styled text area container
+                    // STEP 3: RENDER THE ACTION RESPONSE TO THE SCREEN
                     aiInsightBox.innerHTML = `
                         🤔 You asked: "${question}"<br><br>
                         📊 ${aiResponseText}
                     `;
 
                 } catch (error) {
-                    console.error("AI Proxy Error:", error);
+                    console.error("AI Proxy Loop Error:", error);
                     aiInsightBox.innerHTML = `
                         🤔 You asked: "${question}"<br><br>
                         ❌ <span class="text-rose-400">Failed to connect to AI Core. Verify your Apache reverse proxy configuration.</span>
                     `;
                 } finally {
-                    aiQuestion.disabled = false; // Release input box lock
+                    aiQuestion.disabled = false; // Release field input lock
                     aiQuestion.focus();
                 }
             };
