@@ -945,13 +945,25 @@
                 const BACKEND_URL = "http://172.20.127.7";         
                 const TARGET_MODEL = "llama3:latest"; // Your high-speed VRAM model
 
-                // 2. Put the text box in a loading state using your exact markup classes
-                aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚡ <span class="text-amber-400">Coach is reviewing metrics...</span>`;
-                aiQuestion.value = ""; // Clear input immediately
-                aiQuestion.disabled = true; // Lock text field during generation
+    try {
+        // STEP 1: FORCE AUTOMATIC PRE-WARM HANDSHAKE
+        // This ensures the model script is awake in memory BEFORE passing the query
+        const preWarmResponse = await fetch(`${BASE_URL}/api/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: TARGET_MODEL,
+                keep_alive: -1 // Freeze it in hardware memory context indefinitely
+            })
+        });
 
-                // 3. Compile a contextual prompt for the LLM using your tracking dashboard state
-                const contextualPrompt = `
+        if (!preWarmResponse.ok) throw new Error("AI Core initialization failed.");
+
+        // Update UI to let user know memory allocation succeeded
+        aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚡ <span class="text-amber-400">Coach is analyzing metrics...</span>`;
+
+        // Compile your tracking parameters prompt layout
+        const contextualPrompt = `
 You are the PeakMind Performance Coach. 
 Analyze the user's latest logged metrics and answer their question.
 
@@ -960,11 +972,10 @@ Analyze the user's latest logged metrics and answer their question.
 
 [LATEST METRICS FOR TODAY]:
 - Main Quest: ${latest.mainQuest || 'None'}
-- Today's Sleep: ${latest.sleep} hours (${latest.sleepQuality} Quality)
+- Today's Sleep: ${latest.sleep || 0} hours 
 - Steps taken: ${latest.steps}
 - Energy Burn (PPI): ${latest.ppi} / Value Delivered (CPI): ${latest.cpi}
-- Focused Sprints Completed: ${latest.sprintCount}
-- Daily Journal Entry: "${latest.journal || 'None'}"
+- Focused Sprints Completed: ${latest.sprintCount || 0}
 
 [USER QUESTION]:
 "${question}"
@@ -980,7 +991,7 @@ Provide a highly actionable, motivating performance review tailored directly to 
                             "Content-Type": "application/json"
                         },
                         body: JSON.stringify({
-                            model: "llama3:latest",
+                            model: TARGET_MODEL,
                             prompt: contextualPrompt,
                             stream: false // Expect a single consolidated payload block
                         })
