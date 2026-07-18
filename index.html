@@ -927,34 +927,85 @@
             };
 
             // --- AI Coach Question ---
-            window.askCoach = function() {
+            // --- AI Coach Question ---
+            window.askCoach = async function() {
                 const question = aiQuestion.value.trim();
                 if (!question) return;
+                
                 const logs = getLogs();
-                if (logs.length === 0) { aiInsightBox.innerHTML =
-                        "📭 No data yet. Log a few days for me to analyze!"; return; }
+                if (logs.length === 0) { 
+                    aiInsightBox.innerHTML = "📭 No data yet. Log a few days for me to analyze!"; 
+                    return; 
+                }
+                
                 const latest = logs[0];
                 const metrics = calcMetrics(logs);
 
-                let response = `🤔 You asked: "${question}"\n\n`;
-                if (question.toLowerCase().includes('tired') || question.toLowerCase().includes('sleep')) {
-                    response +=
-                        `Over the last ${logs.length} days, your average sleep is ${metrics.avgSleep.toFixed(1)}h. `;
-                    if (metrics.avgSleep < 6) response +=
-                        `This is below the 7h recommendation. Consider a 20-minute power nap or shifting your bedtime 30min earlier.`;
-                    else response += `Your sleep is solid. Keep it consistent!`;
-                } else if (question.toLowerCase().includes('focus') || question.toLowerCase().includes('productivity')) {
-                    response +=
-                        `Your average yield ratio is ${(logs.reduce((a,b)=>a+(b.yieldRatio||0),0)/logs.length).toFixed(2)}x. `;
-                    if (latest.yieldRatio && latest.yieldRatio > 1.5) response +=
-                        `You're in the zone today! Protect your focus with the 64-sprint method.`;
-                    else response += `Try the "90-min lockdown" to boost your CPI.`;
-                } else {
-                    response +=
-                        `📊 Based on your data, your biggest lever is consistency. Log your sleep, hit your habits, and maintain your Main Quest daily. The 10X is in the daily compound.`;
+                // 1. Point this directly to your live VRAM-backed Apache domain or server IP
+                const BACKEND_URL = "http://yourdomain.com";
+
+                // 2. Put the text box in a loading state using your exact markup classes
+                aiInsightBox.innerHTML = `🤔 You asked: "${question}"<br><br>⚡ <span class="text-amber-400">Coach is reviewing metrics...</span>`;
+                aiQuestion.value = ""; // Clear input immediately
+                aiQuestion.disabled = true; // Lock text field during generation
+
+                // 3. Compile a contextual prompt for the LLM using your tracking dashboard state
+                const contextualPrompt = `
+You are the PeakMind Performance Coach. 
+Analyze the user's latest logged metrics and answer their question.
+
+[HISTORICAL METRICS]:
+- Average Sleep: ${metrics.avgSleep ? metrics.avgSleep.toFixed(1) : '7.0'}h
+
+[LATEST METRICS FOR TODAY]:
+- Main Quest: ${latest.mainQuest || 'None'}
+- Today's Sleep: ${latest.sleep} hours (${latest.sleepQuality} Quality)
+- Steps taken: ${latest.steps}
+- Energy Burn (PPI): ${latest.ppi} / Value Delivered (CPI): ${latest.cpi}
+- Focused Sprints Completed: ${latest.sprintCount}
+- Daily Journal Entry: "${latest.journal || 'None'}"
+
+[USER QUESTION]:
+"${question}"
+
+Provide a highly actionable, motivating performance review tailored directly to these stats. Keep it to 2-3 short, concise sentences maximum.
+`;
+
+                try {
+                    // 4. Send request down the Apache reverse-proxy to the container
+                    const response = await fetch(BACKEND_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model: "llama3:latest",
+                            prompt: contextualPrompt,
+                            stream: false // Expect a single consolidated payload block
+                        })
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                    
+                    const data = await response.json();
+                    const aiResponseText = data.response;
+
+                    // 5. Update the UI precisely inside your styled text area container
+                    aiInsightBox.innerHTML = `
+                        🤔 You asked: "${question}"<br><br>
+                        📊 ${aiResponseText}
+                    `;
+
+                } catch (error) {
+                    console.error("AI Proxy Error:", error);
+                    aiInsightBox.innerHTML = `
+                        🤔 You asked: "${question}"<br><br>
+                        ❌ <span class="text-rose-400">Failed to connect to AI Core. Verify your Apache reverse proxy configuration.</span>
+                    `;
+                } finally {
+                    aiQuestion.disabled = false; // Release input box lock
+                    aiQuestion.focus();
                 }
-                aiInsightBox.innerHTML = response.replace(/\n/g, '<br />');
-                aiQuestion.value = '';
             };
 
             // --- Export / Import / Delete ---
